@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nested JSON String Expander</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121934;
+      --panel-2: #182142;
+      --text: #e8ecf8;
+      --muted: #aab4d6;
+      --accent: #7aa2ff;
+      --accent-2: #8ef0c7;
+      --danger: #ff7b8b;
+      --border: #2b3768;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #0b1020 0%, #0e1530 100%);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: rgba(18, 25, 52, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      min-height: 520px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+    }
+
+    textarea, pre {
+      width: 100%;
+      min-height: 430px;
+      resize: vertical;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 14px;
+      font: 13px/1.5 SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      outline: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.16);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: #1b2650;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover { filter: brightness(1.08); }
+    .primary { background: var(--accent); color: #071126; border-color: transparent; }
+    .success { background: var(--accent-2); color: #07251c; border-color: transparent; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      margin-left: auto;
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 24px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--accent-2); }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #202d5f;
+      color: var(--muted);
+      font-size: 12px;
+      margin-right: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .panel { min-height: auto; }
+      textarea, pre { min-height: 320px; }
+      .checkbox-row { margin-left: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Nested JSON String Expander</div>
+    <div class="subtitle">
+      Paste your text on the left. This tool will parse the outer JSON and recursively expand values that are actually JSON strings,
+      such as <span class="pill">"{\"name\":\"test\"}"</span>.
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Input</h2>
+        <div class="controls">
+          <button class="primary" id="convertBtn">Convert</button>
+          <button id="formatBtn">Format Input</button>
+          <button id="clearBtn">Clear</button>
+          <button id="sampleBtn">Load Sample</button>
+          <label class="checkbox-row">
+            <input type="checkbox" id="recursiveCheck" checked />
+            Recursively expand nested JSON strings
+          </label>
+        </div>
+        <textarea id="input" placeholder="Paste your JSON or JSON-like text here..."></textarea>
+        <div id="status" class="status"></div>
+        <div class="small">
+          Supports cases like outer JSON objects whose field values are JSON-encoded strings. Also tries to handle a top-level quoted JSON string.
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Output</h2>
+        <div class="controls">
+          <button class="success" id="copyBtn">Copy Output</button>
+          <button id="downloadBtn">Download JSON</button>
+        </div>
+        <pre id="output"></pre>
+        <div class="small">
+          If parsing fails, the message will tell you whether the text is incomplete or not valid JSON.
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const inputEl = document.getElementById('input');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const recursiveCheckEl = document.getElementById('recursiveCheck');
+
+    const sample = `{
+  "step|检查步骤": "{\"name\": \"检查步骤\", \"status\": true, \"shield_rules\": {\"network_quality\": {\"name\": \"network_quality\", \"edit\": true}}}",
+  "shield_gateway_alarm": "{\"name\": \"bytepingdas\", \"edit\": false, \"range\": [], \"alarm_type\": [], \"alarm_level\": [], \"effective_time\": 5}",
+  "vnet_gw_type": ""
+}`;
+
+    function setStatus(message, type = '') {
+      statusEl.textContent = message;
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function looksLikeJsonString(str) {
+      if (typeof str !== 'string') return false;
+      const s = str.trim();
+      if (!s) return false;
+      return (
+        (s.startsWith('{') && s.endsWith('}')) ||
+        (s.startsWith('[') && s.endsWith(']')) ||
+        (s.startsWith('"{') && s.endsWith('}"')) ||
+        (s.startsWith('"[') && s.endsWith(']"'))
+      );
+    }
+
+    function tryParseJson(str) {
+      try {
+        return { ok: true, value: JSON.parse(str) };
+      } catch (err) {
+        return { ok: false, error: err };
+      }
+    }
+
+    function expandValue(value, recursive = true) {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (looksLikeJsonString(trimmed)) {
+          const parsed = tryParseJson(trimmed);
+          if (parsed.ok) {
+            return recursive ? expandValue(parsed.value, true) : parsed.value;
+          }
+        }
+        return value;
+      }
+
+      if (Array.isArray(value)) {
+        return value.map(item => recursive ? expandValue(item, true) : item);
+      }
+
+      if (value && typeof value === 'object') {
+        const out = {};
+        for (const [key, val] of Object.entries(value)) {
+          out[key] = recursive ? expandValue(val, true) : val;
+        }
+        return out;
+      }
+
+      return value;
+    }
+
+    function parseTopLevel(text) {
+      const direct = tryParseJson(text);
+      if (direct.ok) return direct.value;
+
+      const trimmed = text.trim();
+      if (looksLikeJsonString(trimmed)) {
+        const reparsed = tryParseJson(trimmed);
+        if (reparsed.ok) return reparsed.value;
+      }
+
+      throw direct.error;
+    }
+
+    function convert() {
+      const raw = inputEl.value.trim();
+      outputEl.textContent = '';
+
+      if (!raw) {
+        setStatus('Please paste some text first.', 'error');
+        return;
+      }
+
+      try {
+        const parsed = parseTopLevel(raw);
+        const expanded = expandValue(parsed, recursiveCheckEl.checked);
+        outputEl.textContent = JSON.stringify(expanded, null, 2);
+        setStatus('Conversion succeeded.', 'ok');
+      } catch (err) {
+        outputEl.textContent = '';
+        const msg = err && err.message ? err.message : String(err);
+        const hint = /Unexpected end of JSON input/i.test(msg)
+          ? ' The input may be truncated or incomplete.'
+          : '';
+        setStatus('Failed to parse input: ' + msg + hint, 'error');
+      }
+    }
+
+    function formatInput() {
+      const raw = inputEl.value.trim();
+      if (!raw) {
+        setStatus('Nothing to format.', 'error');
+        return;
+      }
+      try {
+        const parsed = parseTopLevel(raw);
+        inputEl.value = JSON.stringify(parsed, null, 2);
+        setStatus('Input formatted.', 'ok');
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        setStatus('Cannot format input: ' + msg, 'error');
+      }
+    }
+
+    async function copyOutput() {
+      const text = outputEl.textContent;
+      if (!text) {
+        setStatus('No output to copy.', 'error');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Output copied to clipboard.', 'ok');
+      } catch {
+        setStatus('Copy failed. Your browser may block clipboard access.', 'error');
+      }
+    }
+
+    function downloadOutput() {
+      const text = outputEl.textContent;
+      if (!text) {
+        setStatus('No output to download.', 'error');
+        return;
+      }
+      const blob = new Blob([text], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'expanded.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('Download started.', 'ok');
+    }
+
+    document.getElementById('convertBtn').addEventListener('click', convert);
+    document.getElementById('formatBtn').addEventListener('click', formatInput);
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      inputEl.value = '';
+      outputEl.textContent = '';
+      setStatus('Cleared.');
+    });
+    document.getElementById('sampleBtn').addEventListener('click', () => {
+      inputEl.value = sample;
+      outputEl.textContent = '';
+      setStatus('Sample loaded.');
+    });
+    document.getElementById('copyBtn').addEventListener('click', copyOutput);
+    document.getElementById('downloadBtn').addEventListener('click', downloadOutput);
+  </script>
+</body>
+</html>
