@@ -199,11 +199,13 @@
     const statusEl = document.getElementById('status');
     const recursiveCheckEl = document.getElementById('recursiveCheck');
 
-    const sample = `{
+    <script>
+  const sample = String.raw`{
   "step|step1": "{\"name\": \"PreCheck\", \"status\": true, \"rules1\": {\"quality\": {\"name\": \"quality\", \"edit\": true}}}",
   "category": "{\"name\": \"type1\", \"edit\": false, \"range\": [], \"type\": [], \"level\": [], \"effective_time\": 5}",
   "step": ""
 }`;
+</script>
 
     function setStatus(message, type = '') {
       statusEl.textContent = message;
